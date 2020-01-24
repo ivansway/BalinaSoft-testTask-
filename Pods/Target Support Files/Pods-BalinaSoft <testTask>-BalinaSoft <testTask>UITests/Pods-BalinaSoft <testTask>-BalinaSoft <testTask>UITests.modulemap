@@ -1,0 +1,6 @@
+framework module Pods_BalinaSoft__testTask__BalinaSoft__testTask_UITests {
+  umbrella header "Pods-BalinaSoft <testTask>-BalinaSoft <testTask>UITests-umbrella.h"
+
+  export *
+  module * { export * }
+}

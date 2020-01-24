@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import UIKit
 
 struct JsonBase : Codable {
     
@@ -16,9 +17,21 @@ struct JsonBase : Codable {
     var totalElements : Int?
     var content : [Content]
 }
-
 struct Content : Codable {
-   
-    var id : Int
-    var name : String
+    var id : Int?
+    var name : String?
+}
+
+struct Picture {
+    
+    var developerName: Data
+    var id: Data
+    var image: Data
+    
+    init(developerName: String, id: Int, image: UIImage) {
+        
+        self.developerName = Data(developerName.utf8)
+        self.id = Data("\(id)".utf8)
+        self.image = image.pngData()!
+    }
 }

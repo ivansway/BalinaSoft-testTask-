@@ -2,42 +2,28 @@
 //  MainViewController.swift
 //  BalinaSoft <testTask>
 //
-//  Created by Ivan Myrza on 02/11/2019.
+//  Created by Ivan Myrza on 01/11/2019.
 //  Copyright © 2019 Ivan Myrza. All rights reserved.
 //
 
 import UIKit
 
 class MainViewController: UITableViewController {
-   
-    var jsonObject: JsonBase?
-    var networkManager = NetworkManager()
-    var array: [Content]?
+    
+    let networkManager = NetworkManager()
+    var id: Int?
+    var pageId = 0
+    let activityIndicator = UIActivityIndicatorView()
+    var content: [Content]!
+
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        fetchData()
-    }
-    
-    func fetchData() {
-        guard let url = URL(string: "https://junior.balinasoft.com/api/v2/photo/type") else { return }
-        URLSession.shared.dataTask(with: url) { [weak self] (data, response, error) in
-            if response != nil, error == nil {
-                DispatchQueue.main.async {
-                    do {
-                        let jsonObject = try JSONDecoder().decode(JsonBase.self, from: data!)
-                        self?.jsonObject = jsonObject
-                        self?.tableView.reloadData()
-                        print("succ response: ", jsonObject)
-                    } catch {
-                        print("REQUEST ERROR:", error)
-                    }
-                    
-                    self?.refreshControl?.endRefreshing()
-                }
-            }
-        }.resume()
+        networkManager.delegate = self
+        setupActivityIndicator()
+        networkManager.fetchData(pageId)
+        content = [Content]()
     }
     
     // MARK: - Table view data source
@@ -46,63 +32,97 @@ class MainViewController: UITableViewController {
     }
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return self.jsonObject?.content.count ?? 0
+        return content.count
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "Cell", for: indexPath) as! MainViewCell
         
-        if let content = self.jsonObject?.content[indexPath.row] {
-            cell.textLabel?.text = content.name
-        }
+        let cell = tableView.dequeueReusableCell(withIdentifier: "Cell", for: indexPath) as! MainViewCell
+        cell.textLabel?.text = content[indexPath.row].name
+        self.id = content[indexPath.row].id
+        
+        
+        activityIndicator.isHidden = true
+        activityIndicator.stopAnimating()
+        
         return cell
     }
-    
-    
-    
-    /*
-     // Override to support conditional editing of the table view.
-     override func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
-     // Return false if you do not want the specified item to be editable.
-     return true
-     }
-     */
-    
-    /*
-     // Override to support editing the table view.
-     override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
-     if editingStyle == .delete {
-     // Delete the row from the data source
-     tableView.deleteRows(at: [indexPath], with: .fade)
-     } else if editingStyle == .insert {
-     // Create a new instance of the appropriate class, insert it into the array, and add a new row to the table view
-     }
-     }
-     */
-    
-    /*
-     // Override to support rearranging the table view.
-     override func tableView(_ tableView: UITableView, moveRowAt fromIndexPath: IndexPath, to: IndexPath) {
-     
-     }
-     */
-    
-    /*
-     // Override to support conditional rearranging of the table view.
-     override func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool {
-     // Return false if you do not want the item to be re-orderable.
-     return true
-     }
-     */
-    
-    /*
-     // MARK: - Navigation
-     
-     // In a storyboard-based application, you will often want to do a little preparation before navigation
-     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
-     // Get the new view controller using segue.destination.
-     // Pass the selected object to the new view controller.
-     }
-     */
-    
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        self.alertAction()
+    }
 }
+
+extension MainViewController: UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+    
+    func alertAction() {
+        
+        let alert = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
+        let cancelButton = UIAlertAction(title: "Cancel", style: .cancel)
+        let cameraButton = UIAlertAction(title: "Camera", style: .default) { _ in
+            self.openCamera()
+        }
+        alert.addAction(cameraButton)
+        alert.addAction(cancelButton)
+        self.present(alert, animated: true)
+    }
+    
+    func openCamera() {
+        
+        let picker = UIImagePickerController()
+        picker.sourceType = .photoLibrary //.camera for open camera
+        picker.allowsEditing = true
+        picker.delegate = self
+        self.present(picker, animated: true)
+        
+    }
+    
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+        
+        if let image = info[/*.livePhoto for open camera*/.editedImage] as? UIImage {
+            networkManager.uploadData(Picture(developerName: "MIM", id: id!, image: image))
+            picker.dismiss(animated: true, completion: nil)
+        }
+    }
+}
+
+extension MainViewController {
+    
+    override func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+        
+        if scrollView == tableView {
+            if ((scrollView.contentOffset.y + scrollView.frame.size.height) >= scrollView.contentSize.height) {
+                
+                activityIndicator.isHidden = false
+                activityIndicator.startAnimating()
+                
+                if let totalPages = self.networkManager.jsonObject?.totalPages {
+                    
+                    var totalPagesValue = totalPages
+                    
+                    if totalPagesValue >= 0 {
+                        totalPagesValue -= 1
+                        self.pageId += 1
+                        networkManager.fetchData(pageId)
+                    }
+                }
+            }
+        }
+    }
+}
+
+extension MainViewController {
+    
+    func setupActivityIndicator() {
+        activityIndicator.center = CGPoint(x: self.view.frame.size.width / 2, y: self.view.frame.size.height / 2)
+        self.view.addSubview(activityIndicator)
+    }
+}
+extension MainViewController: NetworkManagerDelegate {
+    
+    func passContent(_ content: [Content]) {
+        self.content = content
+        self.tableView.reloadData()
+    }
+}
+
+
